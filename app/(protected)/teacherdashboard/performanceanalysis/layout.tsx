@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Student Performance Analysis | Absolute Foundation",
+  title: "Student Performance Analysis | Dnyansagar Classes ",
   description: "Student performance dashboard with marks, attendance, and rank history",
 };
 

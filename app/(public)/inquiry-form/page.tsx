@@ -512,7 +512,7 @@ export default function InquiryFormPage() {
 
         {/* Footer */}
         <p className="mt-8 text-slate-600 text-xs text-center">
-          @ Absolute Foundation · All rights reserved
+          @ Dnyansagar Classes · All rights reserved
         </p>
       </div>
     </div>
