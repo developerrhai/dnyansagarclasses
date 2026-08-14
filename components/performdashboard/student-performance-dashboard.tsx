@@ -140,8 +140,10 @@ import { PerformanceFilters, type PerformanceFiltersValue } from "./performance-
 
       console.log("📤 Sending WhatsApp to:", cleanedPhone);
 
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://dnyansagarclasses.rhaitech.online/api";
+
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/whatsapp/send-report`,
+        `${apiUrl}/whatsapp/send-report`,
         {
           method: "POST",
           headers: {
