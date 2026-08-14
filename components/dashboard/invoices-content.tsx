@@ -783,9 +783,6 @@ const handleWhatsAppShare = async (inv: Invoice) => {
 
   const pdfUrl = `https://dnyansagarclasses.rhaitech.online/api/invoices/public/${inv.id}/pdf`
 
-  // Open the printable PDF invoice window for immediate PDF saving
-  window.open(`${pdfUrl}?print=true`, "_blank")
-
   const messageText = `🧾 *TAX INVOICE - DNYANSAGAR CLASSES*
 ---------------------------------------
 *Student Name:* ${inv.student_name}
@@ -797,52 +794,33 @@ const handleWhatsAppShare = async (inv: Invoice) => {
 *Total Invoice Amount:* ₹${amount.toLocaleString()}
 *Remaining Balance:* ₹${balance.toLocaleString()}
 ${inv.description ? `*Description:* ${inv.description}\n` : ""}---------------------------------------
-📄 *Download Official Invoice PDF:*
+📄 *Click to Download/View Official Invoice PDF:*
 ${pdfUrl}
 ---------------------------------------
 Thank you!
 *Dnyansagar Classes*
 Phone: 8862010906 | State: Maharashtra`
 
+  // Open WhatsApp directly so browser popup blocker never blocks it
+  const waUrl = `https://api.whatsapp.com/send?phone=${phone}&text=${encodeURIComponent(messageText)}`
+  window.open(waUrl, "_blank")
+
   try {
-    let sentViaAPI = false
-    try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://dnyansagarclasses.rhaitech.online/api"
-      const sendRes = await fetch(
-        `${apiUrl}/whatsapp/send-invoice`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            phone,
-            studentName: inv.student_name,
-            amountPaid: paid,
-            balance,
-            pdfUrl,
-            message: messageText,
-          }),
-        }
-      )
-      if (sendRes.ok) {
-        const sendJson = await sendRes.json()
-        if (sendJson.success) {
-          sentViaAPI = true
-          alert(`✅ Invoice PDF sent via WhatsApp to ${inv.student_name}!`)
-        }
-      }
-    } catch {
-      // API unavailable or unconfigured, fallback to wa.me link
-    }
-
-    if (!sentViaAPI) {
-      const waUrl = `https://wa.me/${phone}?text=${encodeURIComponent(messageText)}`
-      window.open(waUrl, "_blank")
-    }
-
-  } catch (e: any) {
-    console.error("WhatsApp invoice error:", e)
-    const waUrl = `https://wa.me/${phone}?text=${encodeURIComponent(messageText)}`
-    window.open(waUrl, "_blank")
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://dnyansagarclasses.rhaitech.online/api"
+    await fetch(`${apiUrl}/whatsapp/send-invoice`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        phone,
+        studentName: inv.student_name,
+        amountPaid: paid,
+        balance,
+        pdfUrl,
+        message: messageText,
+      }),
+    })
+  } catch {
+    // Non-blocking background log
   } finally {
     setWhatsappSending(null)
   }
