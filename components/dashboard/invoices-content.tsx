@@ -795,9 +795,6 @@ Thank you for being a part of our institute. Please find the details of your fee
 
 ✅ Your payment has been received successfully.
 
-📄 View / Download Official Payment Receipt PDF:
-${pdfUrl}
-
 We appreciate your trust in us and wish you success in your studies.
 
 Regards,  
