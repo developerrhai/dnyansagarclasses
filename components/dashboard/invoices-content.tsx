@@ -781,10 +781,15 @@ const handleWhatsAppShare = async (inv: Invoice) => {
 
   setWhatsappSending(inv.id)
 
-  const messageText = `🧾 *Payment Receipt - DNYANSAGAR CLASSES*
+  const pdfUrl = `https://dnyansagarclasses.rhaitech.online/api/invoices/public/${inv.id}/pdf`
+
+  // Open the printable PDF invoice window for immediate PDF saving
+  window.open(`${pdfUrl}?print=true`, "_blank")
+
+  const messageText = `🧾 *TAX INVOICE - DNYANSAGAR CLASSES*
 ---------------------------------------
 *Student Name:* ${inv.student_name}
-*Receipt No:* #${inv.id}
+*Invoice No:* #INV${String(inv.id).padStart(3, "0")}
 *Date:* ${fmtDate(inv.install_date)}
 
 *Amount Paid:* ₹${paid.toLocaleString()}
@@ -792,6 +797,9 @@ const handleWhatsAppShare = async (inv: Invoice) => {
 *Total Invoice Amount:* ₹${amount.toLocaleString()}
 *Remaining Balance:* ₹${balance.toLocaleString()}
 ${inv.description ? `*Description:* ${inv.description}\n` : ""}---------------------------------------
+📄 *Download Official Invoice PDF:*
+${pdfUrl}
+---------------------------------------
 Thank you!
 *Dnyansagar Classes*
 Phone: 8862010906 | State: Maharashtra`
@@ -809,6 +817,7 @@ Phone: 8862010906 | State: Maharashtra`
             studentName: inv.student_name,
             amountPaid: paid,
             balance,
+            pdfUrl,
             message: messageText,
           }),
         }
@@ -817,7 +826,7 @@ Phone: 8862010906 | State: Maharashtra`
         const sendJson = await sendRes.json()
         if (sendJson.success) {
           sentViaAPI = true
-          alert(`✅ Invoice sent via WhatsApp to ${inv.student_name}!`)
+          alert(`✅ Invoice PDF sent via WhatsApp to ${inv.student_name}!`)
         }
       }
     } catch {
