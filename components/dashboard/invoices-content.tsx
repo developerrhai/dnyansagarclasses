@@ -44,6 +44,18 @@ interface Student {
 
 interface Summary { total_invoiced: number; total_paid: number; total_pending: number }
 
+interface InvoiceForm {
+  student_name: string
+  amount: string
+  paid_amount: string
+  due_date: string
+  install_date: string
+  transaction_type: string
+  description: string
+  student_id: string
+  student_phone: string
+}
+
 type InvoiceStatus = "Paid" | "Partial" | "Pending" | "Overdue"
 
 const getStatus = (inv: Invoice): InvoiceStatus => {
@@ -92,7 +104,7 @@ export function InvoicesContent() {
   const [studentsLoading, setStudentsLoading] = useState(false)
   const [whatsappSending, setWhatsappSending] = useState<number | null>(null)
   
-  const [form, setForm] = useState({
+  const [form, setForm] = useState<InvoiceForm>({
     student_name: "",
     amount: "",
     paid_amount: "",
@@ -101,6 +113,7 @@ export function InvoicesContent() {
     transaction_type: "Cash",
     description: "",
     student_id: "",
+    student_phone: "",
   })
 
   const load = useCallback(async () => {
@@ -144,12 +157,13 @@ export function InvoicesContent() {
     setStudentSearch(s.name)
     setShowDropdown(false)
     const remaining = Number(s.fee) - Number(s.paid_fee)
-    setForm(prev => ({
+    setForm((prev: InvoiceForm) => ({
       ...prev,
       student_name: s.name,
       student_id: String(s.id),
-      amount: remaining > 0 ? String(remaining) : String(s.fee),
-      paid_amount: remaining > 0 ? String(remaining) : String(s.fee), // ← changed from "0"
+      student_phone: s.phone || "",
+      amount: String(s.fee || 0),
+      paid_amount: remaining > 0 ? String(remaining) : String(s.fee || 0),
       description: `Tuition Fee – ${s.course || s.standard + "th Std"}`,
     }))
   }
@@ -159,9 +173,9 @@ export function InvoicesContent() {
     setStudentSearch("")
     setStudents([])
     setShowDropdown(false)
-    setForm(prev => ({
+    setForm((prev: InvoiceForm) => ({
       ...prev,
-      student_name: "", student_id: "", amount: "",
+      student_name: "", student_id: "", student_phone: "", amount: "",
       paid_amount: "", description: "",
     }))
   }
@@ -172,7 +186,7 @@ export function InvoicesContent() {
     setForm({
       student_name: "", amount: "", paid_amount: "",
       due_date: "", install_date: "", transaction_type: "Cash",
-      description: "", student_id: "",
+      description: "", student_id: "", student_phone: "",
     })
     setModalOpen(true)
   }
@@ -186,6 +200,7 @@ const handleSave = async () => {
     const payload = {
       student_name: form.student_name,
       student_id: form.student_id || undefined,
+      student_phone: form.student_phone || undefined,
       amount: parseFloat(form.amount),
       paid_amount: parseFloat(form.paid_amount) || 0,
       due_date: form.due_date,
@@ -263,6 +278,7 @@ const handleSave = async () => {
     setForm({
       student_name: inv.student_name || "",
       student_id: inv.student_id || "",
+      student_phone: inv.student_phone || "",
       amount: String(inv.amount ?? ""),
       paid_amount: String(inv.paid_amount ?? 0),
       due_date: inv.due_date ? new Date(inv.due_date).toISOString().split("T")[0] : "",
@@ -736,7 +752,13 @@ const handleWhatsAppShare = async (inv: Invoice) => {
   const paid    = Number(inv.paid_amount || 0)
   const balance = amount - paid
 
-  let phone = String(inv.student_phone || "")
+  let rawPhone = inv.student_phone || ""
+  if (!rawPhone && inv.student_id) {
+    const found = students.find(s => String(s.id) === String(inv.student_id))
+    if (found) rawPhone = found.phone
+  }
+
+  let phone = String(rawPhone)
     .trim()
     .replace(/\s+/g, "")
     .replace(/[^0-9]/g, "")
@@ -744,168 +766,72 @@ const handleWhatsAppShare = async (inv: Invoice) => {
 
   if (phone.length === 10) phone = `91${phone}`
 
+  if (!phone || phone.length < 10) {
+    const userEntered = prompt(`Enter phone number for ${inv.student_name}:`)
+    if (!userEntered) return
+    phone = userEntered.trim().replace(/\D/g, "")
+    if (phone.length === 10) phone = `91${phone}`
+  }
+
   if (!phone.startsWith("91") || phone.length !== 12) {
-    alert(`❌ Invalid or missing phone number for ${inv.student_name}`)
+    alert(`❌ Invalid phone number for ${inv.student_name}: ${phone}`)
     return
   }
 
   setWhatsappSending(inv.id)
 
+  const messageText = `🧾 *Payment Receipt - DNYANSAGAR CLASSES*
+---------------------------------------
+*Student Name:* ${inv.student_name}
+*Receipt No:* #${inv.id}
+*Date:* ${fmtDate(inv.install_date)}
+
+*Amount Paid:* ₹${paid.toLocaleString()}
+*Payment Mode:* ${inv.transaction_type || "Cash"}
+*Total Invoice Amount:* ₹${amount.toLocaleString()}
+*Remaining Balance:* ₹${balance.toLocaleString()}
+${inv.description ? `*Description:* ${inv.description}\n` : ""}---------------------------------------
+Thank you!
+*Dnyansagar Classes*
+Phone: 8862010906 | State: Maharashtra`
+
   try {
-    // ── Convert images to base64 ───────────────────────────
-    const toBase64 = (url: string): Promise<string> =>
-      fetch(url)
-        .then(r => r.blob())
-        .then(blob => new Promise((resolve, reject) => {
-          const reader = new FileReader()
-          reader.onload = () => resolve(reader.result as string)
-          reader.onerror = reject
-          reader.readAsDataURL(blob)
-        }))
-
-    const [logoBase64, signBase64] = await Promise.all([
-      toBase64("/logo.jpeg"),
-      toBase64("/sign.jpeg"),
-    ])
-
-    const invoiceHTML = `
-      <div id="invoice-capture" style="
-        width:794px;
-        padding:40px 36px;
-        font-family:Arial,Helvetica,sans-serif;
-        color:#333;
-        background:#fff;
-      ">
-        <!-- Header: institute info left, logo right -->
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;">
-          <div>
-            <h2 style="margin:0;font-size:20px;letter-spacing:0.5px;">DNYANSAGAR CLASSES</h2>
-            <p style="margin:2px 0;font-size:13px;">201/A, New Excelsior Building Opp. Crown Hotel, KHADKI Pune - 411003</p>
-            <p style="margin:2px 0;font-size:13px;">Phone no : 8862010906</p>
-            <p style="margin:2px 0;font-size:13px;">State: Maharashtra</p>
-          </div>
-          <img src="${logoBase64}" style="width:70px;height:auto;" />
-        </div>
-
-        <!-- Title -->
-        <div style="
-          text-align:center;
-          font-size:22px;
-          color:#1f7fa6;
-          font-weight:bold;
-          margin-top:15px;
-          padding-top:10px;
-          border-top:2px solid #1f7fa6;
-        ">
-          Payment Receipt
-        </div>
-
-        <!-- Content: left info + right receipt details -->
-        <div style="display:flex;justify-content:space-between;margin-top:25px;">
-          <div style="width:48%;">
-            <div style="font-weight:bold;margin-top:10px;">Received From</div>
-            <div style="margin-top:4px;">${inv.student_name}</div>
-            <div style="margin-top:4px;">Contact No : ${inv.student_phone || "-"}</div>
-            <div style="font-weight:bold;margin-top:10px;">Amount in words</div>
-            <div style="margin-top:4px;">${paid.toLocaleString()} Rupees only</div>
-          </div>
-          <div style="width:48%;">
-            <div style="text-align:right;font-size:14px;margin-bottom:15px;">
-              <div><b>Receipt Details</b></div>
-              <div>Receipt No : ${inv.id}</div>
-              <div><b>Date :</b> ${fmtDate(inv.install_date)}</div>
-            </div>
-            <table style="width:100%;border-collapse:collapse;">
-              <tr>
-                <td style="padding:6px 0;font-size:14px;">Received</td>
-                <td style="padding:6px 0;font-size:14px;text-align:right;font-weight:bold;">₹ ${paid.toLocaleString()}</td>
-              </tr>
-              <tr>
-                <td style="padding:6px 0;font-size:14px;">Payment mode</td>
-                <td style="padding:6px 0;font-size:14px;text-align:right;font-weight:bold;">${inv.transaction_type || "Online"}</td>
-              </tr>
-              <tr>
-                <td style="padding:6px 0;font-size:14px;">Previous Balance</td>
-                <td style="padding:6px 0;font-size:14px;text-align:right;font-weight:bold;">₹ ${amount.toLocaleString()}</td>
-              </tr>
-              <tr>
-                <td style="padding:6px 0;font-size:14px;border-top:1px solid #999;">Current Balance</td>
-                <td style="padding:6px 0;font-size:14px;text-align:right;font-weight:bold;border-top:1px solid #999;">₹ ${balance.toLocaleString()}</td>
-              </tr>
-            </table>
-          </div>
-        </div>
-
-        <!-- Signature: right aligned, sign image above Authorized Signatory -->
-        <div style="margin-top:70px;text-align:right;">
-          <div>For : Dnyansagar Classes</div>
-          <img src="${signBase64}" style="height:60px;margin:8px 0;display:block;margin-left:auto;" />
-          <div style="font-weight:bold;">Authorized Signatory</div>
-        </div>
-      </div>
-    `
-
-    // ── Render & capture ───────────────────────────────────
-    const { toPng } = await import("html-to-image")
-    const container = document.createElement("div")
-    container.style.cssText = "position:fixed;top:-9999px;left:-9999px;z-index:-1;background:#fff;"
-    container.innerHTML = invoiceHTML
-    document.body.appendChild(container)
-
-    const invoiceEl = container.querySelector("#invoice-capture") as HTMLElement
-
-    const dataUrl = await toPng(invoiceEl, {
-      quality: 1,
-      pixelRatio: 2,
-      backgroundColor: "#ffffff",
-    })
-    document.body.removeChild(container)
-
-    const fetchRes = await fetch(dataUrl)
-    const blob     = await fetchRes.blob()
-
-    const uploadForm = new FormData()
-    uploadForm.append("image", blob, `invoice-${inv.id}.png`)
-
-    const uploadRes  = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/whatsapp/upload-invoice`,
-      { method: "POST", body: uploadForm }
-    )
-    const uploadJson = await uploadRes.json()
-
-    if (!uploadJson.success) {
-      alert(`❌ Image upload failed: ${uploadJson.message}`)
-      return
+    let sentViaAPI = false
+    try {
+      const sendRes = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/whatsapp/send-invoice`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            phone,
+            studentName: inv.student_name,
+            amountPaid: paid,
+            balance,
+            message: messageText,
+          }),
+        }
+      )
+      if (sendRes.ok) {
+        const sendJson = await sendRes.json()
+        if (sendJson.success) {
+          sentViaAPI = true
+          alert(`✅ Invoice sent via WhatsApp to ${inv.student_name}!`)
+        }
+      }
+    } catch {
+      // API unavailable or unconfigured, fallback to wa.me link
     }
 
-    console.log("✅ Invoice uploaded:", uploadJson.url)
-
-    const sendRes  = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/whatsapp/send-invoice`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          phone,
-          studentName: inv.student_name,
-          amountPaid:  paid,
-          balance,
-          imageUrl:    uploadJson.url,
-        }),
-      }
-    )
-    const sendJson = await sendRes.json()
-    console.log("📱 WhatsApp response:", sendJson)
-
-    if (sendJson.success) {
-      alert(`✅ Invoice sent to ${inv.student_name}!`)
-    } else {
-      alert(`❌ Failed: ${sendJson.message || "WhatsApp API error"}`)
+    if (!sentViaAPI) {
+      const waUrl = `https://wa.me/${phone}?text=${encodeURIComponent(messageText)}`
+      window.open(waUrl, "_blank")
     }
 
   } catch (e: any) {
     console.error("WhatsApp invoice error:", e)
-    alert(`❌ Error: ${e.message}`)
+    const waUrl = `https://wa.me/${phone}?text=${encodeURIComponent(messageText)}`
+    window.open(waUrl, "_blank")
   } finally {
     setWhatsappSending(null)
   }
@@ -1017,8 +943,9 @@ const handleWhatsAppShare = async (inv: Invoice) => {
                   <TableRow className="bg-slate-900">
                     <TableHead className="text-white font-semibold">ID</TableHead>
                     <TableHead className="text-white font-semibold">Student</TableHead>
-                    <TableHead className="text-white font-semibold hidden sm:table-cell">Balance Amount</TableHead>
-                    <TableHead className="text-white font-semibold hidden md:table-cell">Paid</TableHead>
+                    <TableHead className="text-white font-semibold hidden sm:table-cell">Total Amount</TableHead>
+                    <TableHead className="text-white font-semibold hidden md:table-cell">Amount Paid</TableHead>
+                    <TableHead className="text-white font-semibold hidden md:table-cell">Pending Balance</TableHead>
                     <TableHead className="text-white font-semibold hidden lg:table-cell">Paid Date</TableHead>
                     <TableHead className="text-white font-semibold hidden lg:table-cell">Due Date</TableHead>
                     <TableHead className="text-white font-semibold">Status</TableHead>
@@ -1028,18 +955,20 @@ const handleWhatsAppShare = async (inv: Invoice) => {
                 <TableBody>
                   {filteredInvoices.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                         No invoices found
                       </TableCell>
                     </TableRow>
                   ) : filteredInvoices.map(inv => {
                     const status = getStatus(inv)
+                    const pendingBal = Math.max(0, Number(inv.amount) - Number(inv.paid_amount))
                     return (
                       <TableRow key={inv.id} className="hover:bg-muted/50">
                         <TableCell className="font-medium">INV{String(inv.id).padStart(3, "0")}</TableCell>
                         <TableCell>{inv.student_name}</TableCell>
                         <TableCell className="hidden sm:table-cell">₹{Number(inv.amount).toLocaleString()}</TableCell>
                         <TableCell className="hidden md:table-cell">₹{Number(inv.paid_amount).toLocaleString()}</TableCell>
+                        <TableCell className="hidden md:table-cell font-semibold text-amber-600">₹{pendingBal.toLocaleString()}</TableCell>
                         <TableCell className="hidden lg:table-cell text-muted-foreground">{fmtDate(inv.install_date)}</TableCell>
                         <TableCell className="hidden lg:table-cell">{fmtDate(inv.due_date)}</TableCell>
                         <TableCell>
@@ -1173,11 +1102,11 @@ const handleWhatsAppShare = async (inv: Invoice) => {
             {/* Amount fields */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Balance Amount (₹) <span className="text-destructive">*</span></Label>
+                <Label>Total Invoice Amount (₹) <span className="text-destructive">*</span></Label>
                 <Input type="number" value={form.amount} onChange={e => f("amount", e.target.value)} placeholder="Total fee" />
               </div>
               <div className="space-y-2">
-                <Label>Paid (₹)</Label>
+                <Label>Amount Paid (₹)</Label>
                 <Input type="number" value={form.paid_amount} onChange={e => f("paid_amount", e.target.value)} placeholder="Amount paid" />
               </div>
             </div>
