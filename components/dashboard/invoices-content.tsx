@@ -783,23 +783,25 @@ const handleWhatsAppShare = async (inv: Invoice) => {
 
   const pdfUrl = `https://dnyansagarclasses.rhaitech.online/api/invoices/public/${inv.id}/pdf`
 
-  const messageText = `🧾 *TAX INVOICE - DNYANSAGAR CLASSES*
----------------------------------------
-*Student Name:* ${inv.student_name}
-*Invoice No:* #INV${String(inv.id).padStart(3, "0")}
-*Date:* ${fmtDate(inv.install_date)}
+  const messageText = `Greetings from DNYANSAGAR CLASSES,
 
-*Amount Paid:* ₹${paid.toLocaleString()}
-*Payment Mode:* ${inv.transaction_type || "Cash"}
-*Total Invoice Amount:* ₹${amount.toLocaleString()}
-*Remaining Balance:* ₹${balance.toLocaleString()}
-${inv.description ? `*Description:* ${inv.description}\n` : ""}---------------------------------------
-📄 *Click to Download/View Official Invoice PDF:*
+Thank you for being a part of our institute. Please find the details of your fee payment below.
+
+📘 Fee Payment Details
+
+👨‍🎓 Student Name: ${inv.student_name}  
+💰 Amount Paid: ₹${paid.toLocaleString('en-IN')}  
+📌 Balance: ₹${balance.toLocaleString('en-IN')}  
+
+✅ Your payment has been received successfully.
+
+📄 View / Download Official Payment Receipt PDF:
 ${pdfUrl}
----------------------------------------
-Thank you!
-*Dnyansagar Classes*
-Phone: 8862010906 | State: Maharashtra`
+
+We appreciate your trust in us and wish you success in your studies.
+
+Regards,  
+DNYANSAGAR CLASSES`
 
   // Open WhatsApp directly so browser popup blocker never blocks it
   const waUrl = `https://api.whatsapp.com/send?phone=${phone}&text=${encodeURIComponent(messageText)}`
