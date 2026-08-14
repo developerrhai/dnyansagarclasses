@@ -806,6 +806,109 @@ DNYANSAGAR CLASSES`
 
   try {
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://dnyansagarclasses.rhaitech.online/api"
+
+    // Step 1 — Build Payment Receipt HTML element for canvas capture
+    const invoiceHTML = `
+      <div id="invoice-capture" style="
+        width:794px;
+        padding:40px 36px;
+        font-family:Arial,Helvetica,sans-serif;
+        color:#2d3748;
+        background:#ffffff;
+      ">
+        <div style="display:flex;justify-content:space-between;border-bottom:2px solid #1f7fa6;padding-bottom:12px">
+          <div>
+            <h2 style="margin:0;font-size:22px;color:#1f7fa6;font-weight:bold">DNYANSAGAR CLASSES</h2>
+            <p style="margin:4px 0;font-size:13px;color:#4a5568">
+              201/A, New Excelsior Building Opp. Crown Hotel, KHADKI Pune - 411003
+            </p>
+            <p style="margin:2px 0;font-size:13px;color:#4a5568">
+              Phone no : 8862010906 | State: Maharashtra
+            </p>
+          </div>
+        </div>
+
+        <div style="text-align:center;color:#1f7fa6;font-size:22px;font-weight:bold;margin:25px 0 20px 0">
+          Payment Receipt
+        </div>
+
+        <div style="display:flex;justify-content:space-between;margin-bottom:25px;font-size:14px;line-height:1.6">
+          <div>
+            <p style="margin:4px 0"><b>Received From</b></p>
+            <p style="margin:4px 0;text-transform:lowercase">${inv.student_name}</p>
+            <p style="margin:4px 0"><b>Contact No :</b> ${phone}</p>
+          </div>
+
+          <div style="text-align:right">
+            <h4 style="margin:0 0 6px 0;font-size:15px;color:#2d3748">Receipt Details</h4>
+            <p style="margin:4px 0"><b>Receipt No :</b> ${inv.id}</p>
+            <p style="margin:4px 0"><b>Date :</b> ${fmtDate(inv.install_date)}</p>
+          </div>
+        </div>
+
+        <table style="width:100%;border-collapse:collapse;margin-top:15px;font-size:14px">
+          <tr>
+            <td style="padding:10px 0">Received</td>
+            <td style="text-align:right;font-weight:bold">₹ ${paid.toLocaleString('en-IN')}</td>
+          </tr>
+          <tr>
+            <td style="padding:10px 0">Payment mode</td>
+            <td style="text-align:right;font-weight:bold">${inv.transaction_type || "Cash"}</td>
+          </tr>
+          <tr>
+            <td style="padding:10px 0">Previous Balance</td>
+            <td style="text-align:right;font-weight:bold">₹ ${amount.toLocaleString('en-IN')}</td>
+          </tr>
+          <tr style="border-top:1px solid #718096">
+            <td style="padding:10px 0"><b>Current Balance</b></td>
+            <td style="text-align:right;font-weight:bold">₹ ${balance.toLocaleString('en-IN')}</td>
+          </tr>
+        </table>
+
+        <div style="margin-top:50px;text-align:right;font-size:14px">
+          <div>For : DNYANSAGAR CLASSES</div>
+          <div style="font-weight:bold;margin-top:35px;color:#1a202c">Authorized Signatory</div>
+        </div>
+      </div>
+    `
+
+    // Step 2 — Render HTML to PNG image canvas
+    const { default: html2canvas } = await import("html2canvas")
+    const container = document.createElement("div")
+    container.style.position = "fixed"
+    container.style.top = "-9999px"
+    container.style.left = "-9999px"
+    container.innerHTML = invoiceHTML
+    document.body.appendChild(container)
+
+    const canvas = await html2canvas(
+      container.querySelector("#invoice-capture") as HTMLElement,
+      { scale: 2, useCORS: true, backgroundColor: "#ffffff" }
+    )
+    document.body.removeChild(container)
+
+    const imageBase64 = canvas.toDataURL("image/png")
+
+    // Step 3 — Upload PNG image to server
+    let imageUrl = ""
+    try {
+      const uploadRes = await fetch(`${apiUrl}/whatsapp/upload-invoice`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          imageBase64,
+          filename: `invoice-${inv.id}.png`,
+        }),
+      })
+      const uploadJson = await uploadRes.json()
+      if (uploadJson.success) {
+        imageUrl = uploadJson.url
+      }
+    } catch (uploadErr) {
+      console.error("Image upload failed:", uploadErr)
+    }
+
+    // Step 4 — Send Invoice Image + Caption to RhaiTech WhatsApp API Gateway
     await fetch(`${apiUrl}/whatsapp/send-invoice`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -815,11 +918,12 @@ DNYANSAGAR CLASSES`
         amountPaid: paid,
         balance,
         pdfUrl,
+        imageUrl: imageUrl || pdfUrl,
         message: messageText,
       }),
     })
-  } catch {
-    // Non-blocking background log
+  } catch (err) {
+    console.error("Backend WhatsApp notify error:", err)
   } finally {
     setWhatsappSending(null)
   }
