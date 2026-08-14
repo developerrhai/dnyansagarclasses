@@ -872,8 +872,7 @@ DNYANSAGAR CLASSES`
       </div>
     `
 
-    // Step 2 — Render HTML to PNG image canvas
-    const { default: html2canvas } = await import("html2canvas")
+    // Step 2 — Append element & Render HTML to PNG image canvas
     const container = document.createElement("div")
     container.style.position = "fixed"
     container.style.top = "-9999px"
@@ -881,13 +880,36 @@ DNYANSAGAR CLASSES`
     container.innerHTML = invoiceHTML
     document.body.appendChild(container)
 
-    const canvas = await html2canvas(
-      container.querySelector("#invoice-capture") as HTMLElement,
-      { scale: 2, useCORS: true, backgroundColor: "#ffffff" }
-    )
-    document.body.removeChild(container)
+    const el = container.querySelector("#invoice-capture") as HTMLElement
+    let imageBase64 = ""
 
-    const imageBase64 = canvas.toDataURL("image/png")
+    try {
+      const { toPng } = await import("html-to-image")
+      imageBase64 = await toPng(el, { pixelRatio: 2, cacheBust: true })
+    } catch (renderErr) {
+      console.warn("html-to-image fallback to html2canvas:", renderErr)
+      try {
+        const { default: html2canvas } = await import("html2canvas")
+        const canvas = await html2canvas(el, {
+          scale: 2,
+          useCORS: true,
+          backgroundColor: "#ffffff",
+          onclone: (clonedDoc) => {
+            const styles = clonedDoc.querySelectorAll("style, link[rel='stylesheet']")
+            styles.forEach((s) => {
+              if (s.textContent && (s.textContent.includes("lab(") || s.textContent.includes("oklch("))) {
+                s.remove()
+              }
+            })
+          },
+        })
+        imageBase64 = canvas.toDataURL("image/png")
+      } catch (canvasErr) {
+        console.error("Canvas render failed:", canvasErr)
+      }
+    }
+
+    document.body.removeChild(container)
 
     // Step 3 — Upload PNG image to server
     let imageUrl = ""
