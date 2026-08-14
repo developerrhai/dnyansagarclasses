@@ -800,10 +800,6 @@ We appreciate your trust in us and wish you success in your studies.
 Regards,  
 DNYANSAGAR CLASSES`
 
-  // Open WhatsApp directly so browser popup blocker never blocks it
-  const waUrl = `https://api.whatsapp.com/send?phone=${phone}&text=${encodeURIComponent(messageText)}`
-  window.open(waUrl, "_blank")
-
   try {
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://dnyansagarclasses.rhaitech.online/api"
 
@@ -964,8 +960,18 @@ DNYANSAGAR CLASSES`
     })
     const sendJson = await sendRes.json()
     console.log("🎉 [WhatsApp Share] Final Send Invoice Response:", sendJson)
+
+    if (sendJson.sentViaApi || sendJson.success) {
+      alert(`✅ Receipt image & invoice sent successfully to ${phone}!`)
+    } else {
+      console.warn("⚠️ API dispatch returned false, falling back to manual WhatsApp Web launch...")
+      const waUrl = `https://api.whatsapp.com/send?phone=${phone}&text=${encodeURIComponent(messageText)}`
+      window.open(waUrl, "_blank")
+    }
   } catch (err) {
     console.error("Backend WhatsApp notify error:", err)
+    const waUrl = `https://api.whatsapp.com/send?phone=${phone}&text=${encodeURIComponent(messageText)}`
+    window.open(waUrl, "_blank")
   } finally {
     setWhatsappSending(null)
   }
