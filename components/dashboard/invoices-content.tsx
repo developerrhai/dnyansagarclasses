@@ -157,13 +157,14 @@ export function InvoicesContent() {
     setStudentSearch(s.name)
     setShowDropdown(false)
     const remaining = Number(s.fee) - Number(s.paid_fee)
+    const defaultAmount = remaining > 0 ? remaining : Number(s.fee || 0)
     setForm((prev: InvoiceForm) => ({
       ...prev,
       student_name: s.name,
       student_id: String(s.id),
       student_phone: s.phone || "",
-      amount: String(s.fee || 0),
-      paid_amount: remaining > 0 ? String(remaining) : String(s.fee || 0),
+      amount: String(defaultAmount),
+      paid_amount: String(defaultAmount),
       description: `Tuition Fee – ${s.course || s.standard + "th Std"}`,
     }))
   }
