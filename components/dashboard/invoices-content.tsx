@@ -872,6 +872,8 @@ DNYANSAGAR CLASSES`
       </div>
     `
 
+    console.log("📱 [WhatsApp Share] Initiating share for:", inv.student_name, "| Phone:", phone)
+
     // Step 2 — Append element & Render HTML to PNG image canvas
     const container = document.createElement("div")
     container.style.position = "fixed"
@@ -884,10 +886,12 @@ DNYANSAGAR CLASSES`
     let imageBase64 = ""
 
     try {
+      console.log("🎨 [WhatsApp Share] Step 1: Rendering payment receipt to PNG image...")
       const { toPng } = await import("html-to-image")
       imageBase64 = await toPng(el, { pixelRatio: 2, cacheBust: true })
+      console.log("✅ [WhatsApp Share] Rendered via toPng. Base64 size:", imageBase64.length, "bytes")
     } catch (renderErr) {
-      console.warn("html-to-image fallback to html2canvas:", renderErr)
+      console.warn("⚠️ [WhatsApp Share] toPng failed, falling back to html2canvas:", renderErr)
       try {
         const { default: html2canvas } = await import("html2canvas")
         const canvas = await html2canvas(el, {
@@ -904,8 +908,9 @@ DNYANSAGAR CLASSES`
           },
         })
         imageBase64 = canvas.toDataURL("image/png")
+        console.log("✅ [WhatsApp Share] Rendered via html2canvas. Base64 size:", imageBase64.length, "bytes")
       } catch (canvasErr) {
-        console.error("Canvas render failed:", canvasErr)
+        console.error("❌ [WhatsApp Share] Canvas rendering failed completely:", canvasErr)
       }
     }
 
@@ -913,25 +918,38 @@ DNYANSAGAR CLASSES`
 
     // Step 3 — Upload PNG image to server
     let imageUrl = ""
-    try {
-      const uploadRes = await fetch(`${apiUrl}/whatsapp/upload-invoice`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          imageBase64,
-          filename: `invoice-${inv.id}.png`,
-        }),
-      })
-      const uploadJson = await uploadRes.json()
-      if (uploadJson.success) {
-        imageUrl = uploadJson.url
+    if (imageBase64) {
+      try {
+        console.log("uploading image: " + `${apiUrl}/whatsapp/upload-invoice`)
+        console.log("📤 [WhatsApp Share] Step 2: Uploading generated PNG image to server...")
+        const uploadRes = await fetch(`${apiUrl}/whatsapp/upload-invoice`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            imageBase64,
+            filename: `invoice-${inv.id}.png`,
+          }),
+        })
+        const uploadJson = await uploadRes.json()
+        console.log("✅ [WhatsApp Share] Image Upload Response:", uploadJson)
+        if (uploadJson.success) {
+          imageUrl = uploadJson.url
+        }
+      } catch (uploadErr) {
+        console.error("❌ [WhatsApp Share] Image upload failed:", uploadErr)
       }
-    } catch (uploadErr) {
-      console.error("Image upload failed:", uploadErr)
+    } else {
+      console.warn("⚠️ [WhatsApp Share] No imageBase64 generated. Falling back to PDF link.")
     }
 
     // Step 4 — Send Invoice Image + Caption to RhaiTech WhatsApp API Gateway
-    await fetch(`${apiUrl}/whatsapp/send-invoice`, {
+    console.log("🚀 [WhatsApp Share] Step 3: Sending WhatsApp invoice via RhaiTech API...", {
+      phone,
+      studentName: inv.student_name,
+      imageUrl: imageUrl || pdfUrl,
+    })
+
+    const sendRes = await fetch(`${apiUrl}/whatsapp/send-invoice`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -944,6 +962,8 @@ DNYANSAGAR CLASSES`
         message: messageText,
       }),
     })
+    const sendJson = await sendRes.json()
+    console.log("🎉 [WhatsApp Share] Final Send Invoice Response:", sendJson)
   } catch (err) {
     console.error("Backend WhatsApp notify error:", err)
   } finally {
