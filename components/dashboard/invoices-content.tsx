@@ -807,8 +807,9 @@ Phone: 8862010906 | State: Maharashtra`
   try {
     let sentViaAPI = false
     try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://dnyansagarclasses.rhaitech.online/api"
       const sendRes = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/whatsapp/send-invoice`,
+        `${apiUrl}/whatsapp/send-invoice`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
